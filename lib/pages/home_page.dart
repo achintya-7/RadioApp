@@ -2,9 +2,11 @@
 
 import 'dart:convert';
 
+import 'package:alan_voice/alan_voice.dart';
 import 'package:audioplayer/audioplayer.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:my_app/utils/themes.dart';
 import 'package:velocity_x/velocity_x.dart';
@@ -20,11 +22,24 @@ class _HomePageState extends State<HomePage> {
   Color _selectedColor = AIColors.primaryColor1;
   bool _isplaying = false;
 
+  final sugg = [
+    "Play",
+    "Stop",
+    "Play rock music",
+    "Play 107 FM",
+    "Play next",
+    "Play 104 FM",
+    "Pause",
+    "Play previous",
+    "Play pop music"
+  ];
+
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
+    setupAlan();
     fetchRadios();
 
     _audioPlayer.onPlayerStateChanged.listen((event) {
@@ -35,6 +50,78 @@ class _HomePageState extends State<HomePage> {
       }
       setState(() {});
     });
+  }
+
+  void setupAlan() {
+    AlanVoice.addButton(
+        "19757f5358faf644ea84ed84c7b4cf882e956eca572e1d8b807a3e2338fdd0dc/stage",
+        buttonAlign: AlanVoice.BUTTON_ALIGN_RIGHT);
+
+    AlanVoice.callbacks.add((command) => _handleCommand(command.data));
+  }
+
+  _handleCommand(Map<String, dynamic> response) {
+    switch (response["command"]) {
+      case "play":
+        _playMusic(_selectedRadio.url);
+        break;
+
+      case "stop":
+        _audioPlayer.stop();
+        break;
+
+      case "next":
+        final index = _selectedRadio.id;
+        MyRadio newradio;
+        if (_isplaying == true) {
+          _audioPlayer.stop();
+        }
+        if (index + 1 > MyRadioList.items.length) {
+          newradio = MyRadioList.items.firstWhere((element) => element.id == 1);
+          MyRadioList.items.remove(newradio);
+          MyRadioList.items.insert(0, newradio);
+        } else {
+          newradio = MyRadioList.items
+              .firstWhere((element) => element.id == index + 1);
+          MyRadioList.items.remove(newradio);
+          MyRadioList.items.insert(0, newradio);
+        }
+        _playMusic(newradio.url);
+        break;
+
+      case "prev":
+        final index = _selectedRadio.id;
+        MyRadio newradio;
+        if (_isplaying == true) {
+          _audioPlayer.stop();
+        }
+        if (index + 1 <= 0) {
+          newradio = MyRadioList.items.firstWhere((element) => element.id == 1);
+          MyRadioList.items.remove(newradio);
+          MyRadioList.items.insert(0, newradio);
+        } else {
+          newradio = MyRadioList.items
+              .firstWhere((element) => element.id == index - 1);
+          MyRadioList.items.remove(newradio);
+          MyRadioList.items.insert(0, newradio);
+        }
+        _playMusic(newradio.url);
+        break;
+
+      case "play_channel":
+        _audioPlayer.stop();
+        final id = response["id"];
+        MyRadio newradio =
+            MyRadioList.items.firstWhere((element) => element.id == id);
+        MyRadioList.items.remove(newradio);
+        MyRadioList.items.insert(0, newradio);
+        _playMusic(newradio.url);
+        break;
+
+      default:
+        print("Command was ${response["command"]}");
+        break;
+    }
   }
 
   _playMusic(String url) {
@@ -53,13 +140,39 @@ class _HomePageState extends State<HomePage> {
     var productsData = decodedData["radios"];
     MyRadioList.items =
         List.from(productsData).map((item) => MyRadio.fromMap(item)).toList();
+    _selectedRadio = MyRadioList.items[0];
+    _selectedColor = Color(int.tryParse(_selectedRadio.color)!);
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: Drawer(),
+      drawer: Drawer(
+        child: Container(
+          color: _selectedColor ?? AIColors.primaryColor2,
+          child: MyRadioList.items != null
+              ? [
+                  100.heightBox,
+                  "All channles".text.xl.white.semiBold.make(),
+                  20.heightBox,
+                  ListView(
+                    padding: Vx.m0,
+                    shrinkWrap: true,
+                    children: MyRadioList.items
+                        .map((e) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage: NetworkImage(e.icon),
+                              ),
+                              title: "${e.name} FM".text.white.make(),
+                              subtitle: e.tagline.text.white.make(),
+                            ))
+                        .toList(),
+                  )
+                ].vStack()
+              : const Offstage(),
+        ),
+      ),
       body: Stack(
         children: [
           // this is how we are getting a buitiful backround of 2 colors
@@ -69,38 +182,54 @@ class _HomePageState extends State<HomePage> {
                 colors: [
                   AIColors.primaryColor2,
                   _selectedColor,
-                  
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ))
               .make(),
 
-          AppBar(
-            title: "Radio".text.xl4.bold.make().shimmer(
-                  primaryColor: Vx.pink900,
-                  secondaryColor: Colors.white,
-                ), // shimmer will add an animation on the text
-            backgroundColor: Colors.transparent,
-            elevation: 0.0,
-            centerTitle: true,
-          ).p16().h(150),
+          [
+            AppBar(
+              title: "Radio".text.xl4.bold.make().shimmer(
+                    primaryColor: Vx.pink900,
+                    secondaryColor: Colors.white,
+                  ), // shimmer will add an animation on the text
+              backgroundColor: Colors.transparent,
+              elevation: 0.0,
+              centerTitle: true,
+            ).p8().h(100),
+            "Start with - HEY ALAN!".text.italic.semiBold.white.make(),
+            VxSwiper.builder(
+                itemCount: sugg.length,
+                height: 40.0,
+                enableInfiniteScroll: true,
+                autoPlay: true,
+                autoPlayAnimationDuration: 3.seconds,
+                autoPlayCurve: Curves.linear,
+                itemBuilder: (context, index) {
+                  final s = sugg[index];
+                  return Chip(
+                    label: s.text.make(),
+                    backgroundColor: Vx.randomColor,
+                  );
+                })
+          ].vStack(alignment: MainAxisAlignment.start),
 
-          10.heightBox,
+          30.heightBox,
 
           // a tinder swipper like widget
-          MyRadioList.items != null
+          MyRadioList.items.length > 3
               ? VxSwiper.builder(
                   itemCount: MyRadioList.items.length,
                   aspectRatio: 1.0,
                   enlargeCenterPage: true,
                   onPageChanged: (index) {
-                    if(MyRadioList.items[index].color != null){
+                    if (MyRadioList.items[index].color != null) {
                       final colorHex = MyRadioList.items[index].color;
                       _selectedColor = Color(int.tryParse(colorHex)!);
+                      _selectedRadio = MyRadioList.items[index];
                       setState(() {});
                     }
-                    
                   },
                   itemBuilder: (context, index) {
                     final rad = MyRadioList.items[index];
