@@ -221,7 +221,11 @@ class _HomePageState extends State<HomePage> {
           MyRadioList.items.length > 3
               ? VxSwiper.builder(
                   itemCount: MyRadioList.items.length,
-                  aspectRatio: 1.0,
+                  aspectRatio: context.mdWindowSize == MobileWindowSize.xsmall
+                      ? 1.0
+                      : context.mdWindowSize == MobileWindowSize.medium
+                          ? 2.0
+                          : 3.0,
                   enlargeCenterPage: true,
                   onPageChanged: (index) {
                     if (MyRadioList.items[index].color != null) {
